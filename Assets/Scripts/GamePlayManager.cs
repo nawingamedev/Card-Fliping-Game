@@ -10,47 +10,43 @@ public class GamePlayManager : MonoBehaviour
     [SerializeField] private GameObject cardPrefab;
     [SerializeField] private Sprite[] faceSprites;
     [SerializeField] private Color[] faceColors;
-    [SerializeField] private int matchCount;
-    [SerializeField] private TextMeshProUGUI matchCountText,turnCountText;
+    [SerializeField] private int matchCount; 
+    [SerializeField] private int m_RowCount,m_ColumnCount;
+    [SerializeField] private TextMeshProUGUI matchCountText, turnCountText;
+
     private int matchedCount
     {
-        get
-        {
-            return _matchedCount;
-        }
-        set
-        {
-            _matchedCount = value;
-            matchCountText.text = matchCount.ToString(); 
-        }
+        get => _matchedCount;
+        set { _matchedCount = value; matchCountText.text = value.ToString(); }
     }
     private int _matchedCount;
+
     private int turnCount
     {
-        get
-        {
-            return _turnCount;
-        }
-        set
-        {
-            _turnCount = value;
-            turnCountText.text = turnCount.ToString(); 
-        }
+        get => _turnCount;
+        set { _turnCount = value; turnCountText.text = value.ToString(); }
     }
     private int _turnCount;
+    private int comboCount = 1;
+    private int scoreCounter;
+
     private GridLayoutGroup gridLayoutGroup;
     private List<GameObject> cards = new();
     private List<CardBehaviour> selectedCard = new();
+
+    private bool inputLocked = false;
+
+
     void Awake()
     {
         gridLayoutGroup = gridPanel.GetComponent<GridLayoutGroup>();
     }
-    // Start is called before the first frame update
+
     void Start()
     {
         matchedCount = 0;
         turnCount = 0;
-        GenerateCards(3,4);
+        GenerateCards(m_RowCount, m_ColumnCount);
     }
 
     void OnEnable()
@@ -61,82 +57,159 @@ public class GamePlayManager : MonoBehaviour
     {
         CardBehaviour.CardClicked -= CardSelected;
     }
-    void GenerateCards(int _rows,int _colmns)
+
+    void GenerateCards(int _rows, int _columns)
     {
-        int count = _rows * _colmns;
-        if(count % 2 != 0){count -= 1;}
-        gridLayoutGroup.constraintCount = _rows;
+        int count = _rows * _columns;
+
+        count = count - (count % matchCount);
+
+        gridLayoutGroup.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        gridLayoutGroup.constraintCount = _columns;
+
+        //Auto-size cards so they always fit the grid perfectly
+        ResizeGridCells(_rows, _columns);
+
+
         List<int> cardSet = new();
-        for(int i = 0; i < count/2; i++)
+
+        int totalGroups = count / matchCount;
+
+        //Initializing no of cards and its copies
+        for (int i = 0; i < totalGroups; i++)
         {
-            cardSet.Add(i);
-            cardSet.Add(i);
+            for (int j = 0; j < matchCount; j++)
+                cardSet.Add(i);
         }
-        for(int i = 0; i < cardSet.Count; i++)
+        //Shuffling cards
+        for (int i = 0; i < cardSet.Count; i++)
         {
-            int random = Random.Range(i,cardSet.Count);
-            int temp = cardSet[i];
-            cardSet[i] = cardSet[random];
-            cardSet[random] = temp;
+            int random = Random.Range(i, cardSet.Count);
+            (cardSet[i], cardSet[random]) = (cardSet[random], cardSet[i]);
         }
-        for(int i = 0; i < count; i++)
+
+        //Creating Images and Card Buttons
+        for (int i = 0; i < count; i++)
         {
-            GameObject _cardObj = Instantiate(cardPrefab,gridPanel.transform);
-            CardBehaviour cb = _cardObj.GetComponent<CardBehaviour>();
-            Debug.Log(faceColors[cardSet[i]]);
-            cb.Initialize(faceColors[cardSet[i]],cardSet[i]);
-            cards.Add(_cardObj);
-            StartCoroutine(ShowHideCards());
+            GameObject obj = Instantiate(cardPrefab, gridPanel.transform);
+            CardBehaviour cb = obj.GetComponent<CardBehaviour>();
+
+            cb.Initialize(faceSprites[cardSet[i]], cardSet[i]);
+            cards.Add(obj);
         }
+
+        StartCoroutine(ShowHideCards());
     }
+
+
     IEnumerator ShowHideCards()
     {
-        foreach(var card in cards)
-        {
+        //Show and Hide card before starting the game
+        inputLocked = true;
+
+        foreach (var card in cards)
             card.GetComponent<CardBehaviour>().FlipCard(true);
-        }
+
         yield return new WaitForSeconds(2.0f);
-        foreach(var card in cards)
-        {
+
+        foreach (var card in cards)
             card.GetComponent<CardBehaviour>().FlipCard(false);
-        }
+
+        inputLocked = false;
     }
-    public void RestartGame()
+    private void ResizeGridCells(int rows, int columns)
     {
-        foreach(GameObject card in cards){Destroy(card);}
-        GenerateCards(3,4);
+        RectTransform panelRect = gridPanel.GetComponent<RectTransform>();
+
+        float panelW = panelRect.rect.width;
+        float panelH = panelRect.rect.height;
+
+        float spacingX = gridLayoutGroup.spacing.x;
+        float spacingY = gridLayoutGroup.spacing.y;
+
+        float totalSpacingX = spacingX * (columns - 1);
+        float totalSpacingY = spacingY * (rows - 1);
+
+        float cellW = (panelW - totalSpacingX) / columns;
+        float cellH = (panelH - totalSpacingY) / rows;
+
+        // Perfect square cards 
+        float finalSize = Mathf.Min(cellW, cellH);
+
+        gridLayoutGroup.cellSize = new Vector2(finalSize, finalSize);
     }
+
+
     void CardSelected(CardBehaviour card)
     {
-        if (card.State == CardStates.FaceUp || card.State == CardStates.Flipping || card.State == CardStates.Matched) return;
+        if (inputLocked) return;                          
+        if (selectedCard.Contains(card)) return;          
+        if (card.State != CardStates.FaceDown) return;   
 
         card.FlipCard(true);
+        AudioManager.instance.Play2DClip("FlipCard");
         selectedCard.Add(card);
-        if (selectedCard.Count >= matchCount)
+
+        // Wait until enough cards selected
+        if (selectedCard.Count < matchCount) return;
+
+        inputLocked = true;
+        turnCount++;
+
+        StartCoroutine(EvaluateSelection());
+    }
+
+    IEnumerator EvaluateSelection()
+    {
+        yield return new WaitForSeconds(0.8f);
+
+        bool allMatch = true;
+
+        int id = selectedCard[0].matchIndex;
+
+        for (int i = 1; i < selectedCard.Count; i++)
         {
-            if (selectedCard[0].matchIndex == selectedCard[1].matchIndex)
+            if (selectedCard[i].matchIndex != id)
             {
-                matchedCount++;
-                StartCoroutine(MatchedCards(selectedCard[0],selectedCard[1]));
+                allMatch = false;
+                break;
             }
-            else
-            {
-                StartCoroutine(NotMatchedCards(selectedCard[0],selectedCard[1]));
-            }
-            turnCount++;
-            selectedCard.Clear();
         }
+
+        if (allMatch)
+        {
+            AudioManager.instance.Play2DClip("CardMatched");
+            matchedCount++;
+            comboCount++;
+            scoreCounter += 10 * comboCount;
+            foreach (var c in selectedCard)
+                c.MatchedCard();
+        }
+        else
+        {
+            AudioManager.instance.Play2DClip("WrongCard");
+            comboCount = 1;
+            foreach (var c in selectedCard)
+                c.FlipCard(false);
+        }
+
+        selectedCard.Clear();
+        inputLocked = false;
     }
-    IEnumerator MatchedCards(CardBehaviour a, CardBehaviour b)
+
+
+    
+    public void RestartGame()
     {
-        yield return new WaitForSeconds(1.0f);
-        a.MatchedCard();
-        b.MatchedCard();
-    }
-    IEnumerator NotMatchedCards(CardBehaviour a, CardBehaviour b)
-    {
-        yield return new WaitForSeconds(1.0f);
-        a.FlipCard(false);
-        b.FlipCard(false);
+        foreach (GameObject card in cards)
+            Destroy(card);
+
+        cards.Clear();
+        selectedCard.Clear();
+
+        matchedCount = 0;
+        turnCount = 0;
+
+        GenerateCards(m_RowCount, m_ColumnCount);
     }
 }

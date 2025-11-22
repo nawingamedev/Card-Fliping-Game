@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using UnityEngine;
 using Unity.VisualScripting;
 using UnityEngine.EventSystems;
+using System;
 
 public class CardBehaviour : MonoBehaviour,IPointerClickHandler
 {
@@ -11,6 +12,7 @@ public class CardBehaviour : MonoBehaviour,IPointerClickHandler
     public CardStates State = CardStates.FaceDown;
     [SerializeField] private GameObject Backface;
     [SerializeField] private Image frontFace;
+    [SerializeField] private float flipTime = 0.3f;
     public delegate void ClickCard(CardBehaviour card);
     public static ClickCard CardClicked;
 
@@ -42,20 +44,45 @@ public class CardBehaviour : MonoBehaviour,IPointerClickHandler
     }
     public void FlipCard(bool status)
     {
-        Backface.SetActive(!status);
         if(status){State = CardStates.FaceUp;}
         else{State = CardStates.FaceDown;}
+        StartCoroutine(FlipCardCoroutine(status));
     }
     public void MatchedCard()
     {
         frontFace.color = new Color(0,0,0,0);
         State = CardStates.Matched;
     }
+    IEnumerator FlipCardCoroutine(bool status)
+    {
+        State = CardStates.flipping;
+        float elapse = 0;
+        float targetRotation = transform.eulerAngles.y + 90;
+        float initialRotation = transform.eulerAngles.x;
+        while(elapse < flipTime)
+        {
+            elapse += Time.deltaTime;
+            float rot = Mathf.Lerp(initialRotation,targetRotation,elapse/flipTime);
+            transform.eulerAngles = new Vector3(transform.eulerAngles.x,rot,transform.eulerAngles.z);
+            yield return null;
+        }
+        Backface.SetActive(!status);
+        targetRotation = transform.eulerAngles.y - 90;
+        elapse = 0;
+        while(elapse < flipTime)
+        {
+            elapse += Time.deltaTime;
+            float rot = Mathf.Lerp(initialRotation,targetRotation,elapse/flipTime);
+            transform.eulerAngles = new Vector3(transform.eulerAngles.x,rot,transform.eulerAngles.z);
+            yield return null;
+        }
+        State = status ? CardStates.FaceUp : CardStates.FaceDown;
+    }
 }
 public enum CardStates
 {
     FaceDown,
-    Flipping,
     FaceUp,
+    flipping,
     Matched,
 }
