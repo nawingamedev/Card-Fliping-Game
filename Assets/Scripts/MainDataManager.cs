@@ -28,6 +28,7 @@ public class MainDataManager : MonoBehaviour
             Directory.CreateDirectory(Path.Combine(Application.persistentDataPath,folderName));
         }
         filePath = Path.Combine(Application.persistentDataPath,folderName,fileName);
+        Debug.Log($"Path : {filePath}");
     }
     void Start()
     {
