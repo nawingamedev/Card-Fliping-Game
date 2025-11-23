@@ -4,17 +4,25 @@ using UnityEngine;
 
 public class UIStateManager : MonoBehaviour
 {
+    public static UIStateManager instance;
+    [SerializeField] private List<UIStateList> uiStates = new();
     private UIBaseStates currentState;
+
     // Start is called before the first frame update
+    void Awake()
+    {
+        if(instance != null)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        instance = this;
+        DontDestroyOnLoad(gameObject);
+
+    }
     void Start()
     {
-        
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        ChangeState(uiStates[0].uiState);
     }
     public void ChangeState(UIBaseStates targetState)
     {
@@ -22,10 +30,26 @@ public class UIStateManager : MonoBehaviour
         currentState = targetState;
         currentState.EnterState();
     }
+    public void ChangeState(UIStateEnum _newStateEnum)
+    {
+        foreach (var state in uiStates)
+        {
+            if (state.stateName == _newStateEnum)
+            {
+                ChangeState(state.uiState);
+            }
+        }
+    }
+}
+[System.Serializable]
+public struct UIStateList
+{
+    public UIStateEnum stateName;
+    public UIBaseStates uiState;
 }
 public abstract class UIBaseStates : MonoBehaviour
 {
-    public UIStateEnum UIState;
+    public abstract UIStateEnum stateName{ get; }
     public abstract void EnterState();
     public abstract void ExitState();
 }

@@ -12,23 +12,18 @@ public class GamePlayManager : MonoBehaviour
     [SerializeField] private Color[] faceColors;
     [SerializeField] private int matchCount; 
     [SerializeField] private int m_RowCount,m_ColumnCount;
-    [SerializeField] private TextMeshProUGUI matchCountText, turnCountText;
+    public delegate void UIUpdate(int machtCount,int turnCount,int score);
+    public static UIUpdate UpdateUI;
+    public delegate void ComboUI(int combo);
+    public static ComboUI GetCombo;
+    public delegate void GameComplete();
+    public static GameComplete LevelCleared;
 
-    private int matchedCount
-    {
-        get => _matchedCount;
-        set { _matchedCount = value; matchCountText.text = value.ToString(); }
-    }
-    private int _matchedCount;
-
-    private int turnCount
-    {
-        get => _turnCount;
-        set { _turnCount = value; turnCountText.text = value.ToString(); }
-    }
-    private int _turnCount;
     private int comboCount = 1;
     private int scoreCounter;
+    private int matchedCount;
+    private int turnCount;
+    private int scoreMultiplier;
 
     private GridLayoutGroup gridLayoutGroup;
     private List<GameObject> cards = new();
@@ -44,9 +39,7 @@ public class GamePlayManager : MonoBehaviour
 
     void Start()
     {
-        matchedCount = 0;
-        turnCount = 0;
-        GenerateCards(m_RowCount, m_ColumnCount);
+        
     }
 
     void OnEnable()
@@ -56,6 +49,15 @@ public class GamePlayManager : MonoBehaviour
     void OnDisable()
     {
         CardBehaviour.CardClicked -= CardSelected;
+    }
+    public void InitializeLevel(int _row,int _columns,int matches,int _scoreMultiplier)
+    {
+        matchedCount = 0;
+        turnCount = 0;
+        scoreCounter = 0;
+        scoreMultiplier = _scoreMultiplier;
+        matchCount = matches;
+        GenerateCards(_row, _columns);
     }
 
     void GenerateCards(int _rows, int _columns)
@@ -181,9 +183,17 @@ public class GamePlayManager : MonoBehaviour
             AudioManager.instance.Play2DClip("CardMatched");
             matchedCount++;
             comboCount++;
-            scoreCounter += 10 * comboCount;
+            scoreCounter += scoreMultiplier * comboCount;
+            if(comboCount > 1) GetCombo?.Invoke(comboCount);
+            
             foreach (var c in selectedCard)
                 c.MatchedCard();
+
+            if (matchedCount == cards.Count / matchCount)
+            {
+                yield return new WaitForSeconds(0.8f);
+                LevelCleared?.Invoke();
+            }
         }
         else
         {
@@ -192,14 +202,12 @@ public class GamePlayManager : MonoBehaviour
             foreach (var c in selectedCard)
                 c.FlipCard(false);
         }
-
+        UpdateUI?.Invoke(matchedCount,turnCount,scoreCounter);
         selectedCard.Clear();
         inputLocked = false;
     }
 
-
-    
-    public void RestartGame()
+    public void ResetGame()
     {
         foreach (GameObject card in cards)
             Destroy(card);
@@ -209,7 +217,6 @@ public class GamePlayManager : MonoBehaviour
 
         matchedCount = 0;
         turnCount = 0;
-
-        GenerateCards(m_RowCount, m_ColumnCount);
+        scoreCounter = 0;
     }
 }
