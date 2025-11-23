@@ -7,7 +7,10 @@ public class DashboardView : UIBaseStates
 {
     public override UIStateEnum stateName => UIStateEnum.DashboardState;
     [SerializeField] TextMeshProUGUI scoreText;
-
+    void Start()
+    {
+        AudioManager.instance.ChangeMusic("BGM");
+    }
     public override void EnterState()
     {
         gameObject.SetActive(true);
@@ -20,6 +23,7 @@ public class DashboardView : UIBaseStates
     }
     public void OpenLevelPage()
     {
+        AudioManager.instance.Play2DClip("ButtonClick");
         UIStateManager.instance.ChangeState(UIStateEnum.LevelSelectionState);
     }
 }

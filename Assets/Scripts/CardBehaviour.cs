@@ -1,10 +1,8 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine;
-using Unity.VisualScripting;
 using UnityEngine.EventSystems;
-using System;
+
 
 public class CardBehaviour : MonoBehaviour,IPointerClickHandler
 {
@@ -13,6 +11,8 @@ public class CardBehaviour : MonoBehaviour,IPointerClickHandler
     [SerializeField] private GameObject Backface;
     [SerializeField] private Image frontFace;
     [SerializeField] private float flipTime = 0.3f;
+
+    private Coroutine coroutine;
     public delegate void ClickCard(CardBehaviour card);
     public static ClickCard CardClicked;
 
@@ -44,9 +44,7 @@ public class CardBehaviour : MonoBehaviour,IPointerClickHandler
     }
     public void FlipCard(bool status)
     {
-        if(status){State = CardStates.FaceUp;}
-        else{State = CardStates.FaceDown;}
-        StartCoroutine(FlipCardCoroutine(status));
+        coroutine = StartCoroutine(FlipCardCoroutine(status));
     }
     public void MatchedCard()
     {
@@ -56,28 +54,35 @@ public class CardBehaviour : MonoBehaviour,IPointerClickHandler
     IEnumerator FlipCardCoroutine(bool status)
     {
         State = CardStates.flipping;
-        float elapse = 0;
-        float targetRotation = transform.eulerAngles.y + 90;
-        float initialRotation = transform.eulerAngles.x;
-        while(elapse < flipTime)
+
+        float t = 0f;
+        float half = flipTime / 2f;
+
+        while (t < half)
         {
-            elapse += Time.deltaTime;
-            float rot = Mathf.Lerp(initialRotation,targetRotation,elapse/flipTime);
-            transform.eulerAngles = new Vector3(transform.eulerAngles.x,rot,transform.eulerAngles.z);
+            t += Time.deltaTime;
+            float p = t / half;
+            transform.localScale = new Vector3(Mathf.Lerp(1f, 0f, p), 1f, 1f);
             yield return null;
         }
+
         Backface.SetActive(!status);
-        targetRotation = transform.eulerAngles.y - 90;
-        elapse = 0;
-        while(elapse < flipTime)
+
+        t = 0f;
+        while (t < half)
         {
-            elapse += Time.deltaTime;
-            float rot = Mathf.Lerp(initialRotation,targetRotation,elapse/flipTime);
-            transform.eulerAngles = new Vector3(transform.eulerAngles.x,rot,transform.eulerAngles.z);
+            t += Time.deltaTime;
+            float p = t / half;
+            transform.localScale = new Vector3(Mathf.Lerp(0f, 1f, p), 1f, 1f);
             yield return null;
         }
+
+        transform.localScale = Vector3.one;
+
         State = status ? CardStates.FaceUp : CardStates.FaceDown;
     }
+
+
 }
 public enum CardStates
 {

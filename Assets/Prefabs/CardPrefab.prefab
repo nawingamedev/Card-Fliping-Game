@@ -170,4 +170,4 @@ MonoBehaviour:
   State: 0
   Backface: {fileID: 5347821754782265546}
   frontFace: {fileID: 5347821755390444672}
-  flipTime: 0.3
+  flipTime: 0.5

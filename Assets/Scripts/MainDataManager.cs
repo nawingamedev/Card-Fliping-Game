@@ -1,9 +1,5 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using JetBrains.Annotations;
-using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 public class MainDataManager : MonoBehaviour

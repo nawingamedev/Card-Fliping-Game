@@ -9,8 +9,11 @@ public class GameplayView : UIBaseStates
     [SerializeField] private LevelData levelData;
     [SerializeField] private TextMeshProUGUI levelTxt;
     [SerializeField] private GamePlayManager gamePlayManager;
-    [SerializeField] private TextMeshProUGUI matchCountText, turnCountText, scoreCountText;
+    [SerializeField] private TextMeshProUGUI matchCountText, turnCountText, scoreCountText,comboCountText;
     [SerializeField] private GameObject levelCompletePanel;
+    [SerializeField] private float comboBaseY,comboTargetY,comboAnimTime;
+    [SerializeField] private RectTransform comboRect;
+
     private int matchedCount
     {
         get => _matchedCount;
@@ -30,6 +33,8 @@ public class GameplayView : UIBaseStates
         set { _scoreCount = value; scoreCountText.text = value.ToString(); }
     }
     private int _scoreCount;
+    private Coroutine coroutine;
+
     public override void EnterState()
     {
         gameObject.SetActive(true);
@@ -44,6 +49,7 @@ public class GameplayView : UIBaseStates
         gamePlayManager.gameObject.SetActive(false);
         gameObject.SetActive(false);
     }
+    
     void OnEnable()
     {
         GamePlayManager.UpdateUI += UpdateUI;
@@ -72,12 +78,14 @@ public class GameplayView : UIBaseStates
         turnCount = _turn;
         scoreCount = _score;
     }
-    void ComboAnimation(int _comboCount)
-    {
-        
-    }
     void LevelCleared()
     {
+        AudioManager.instance.Play2DClip("GameWin");
+        if(coroutine != null)
+        {
+            StopCoroutine(coroutine);
+            comboRect.anchoredPosition = comboRect.anchoredPosition = new Vector2(comboRect.anchoredPosition.x,comboBaseY);
+        }
         MainData mainData = MainDataManager.instance.playerData;
         mainData.levelInfo[levelData.selectedLevel + 1] = new()
         {
@@ -86,18 +94,65 @@ public class GameplayView : UIBaseStates
         };
         mainData.score += 100;
         MainDataManager.instance.SaveData(mainData);
-        levelData.selectedLevel++;
+        if(levelData.levelsLists.Count - 1 > levelData.selectedLevel){
+            levelData.selectedLevel++;
+        }
         levelCompletePanel.SetActive(true);
+    }
+    void ComboAnimation(int _comboCount)
+    {
+        comboCountText.text = "COMBO " + _comboCount + "X";
+        if(coroutine != null)
+        {
+            StopCoroutine(coroutine);
+            comboRect.anchoredPosition = comboRect.anchoredPosition = new Vector2(comboRect.anchoredPosition.x,comboBaseY);
+        }
+        coroutine = StartCoroutine(ComboAnimation());
+        
+    }
+    IEnumerator ComboAnimation()
+    {
+        float elapse = 0;
+        while(elapse < comboAnimTime)
+        {
+            float tempY = Mathf.Lerp(comboBaseY,comboTargetY,elapse/comboAnimTime);
+            comboRect.anchoredPosition = new Vector2(comboRect.anchoredPosition.x,tempY);
+            elapse += Time.deltaTime;
+            yield return null;
+        }
+        yield return new WaitForSeconds(1f);
+        elapse = 0;
+        while(elapse < comboAnimTime)
+        {
+            float tempY = Mathf.Lerp(comboTargetY,comboBaseY,elapse/comboAnimTime);
+            comboRect.anchoredPosition = new Vector2(comboRect.anchoredPosition.x,tempY);
+            elapse += Time.deltaTime;
+            yield return null;
+        }
     }
     public void RestartGame()
     {
+        AudioManager.instance.Play2DClip("ButtonClick");
+        if(coroutine != null)
+        {
+            StopCoroutine(coroutine);
+            comboRect.anchoredPosition = comboRect.anchoredPosition = new Vector2(comboRect.anchoredPosition.x,comboBaseY);
+        }
+        UpdateUI(0,0,0);
+        levelCompletePanel.SetActive(false);
         gamePlayManager.ResetGame();
         InitializeGameplay();
-        levelCompletePanel.SetActive(false);
     }
     public void Home()
     {
-        UIStateManager.instance.ChangeState(UIStateEnum.DashboardState);
+        AudioManager.instance.Play2DClip("ButtonClick");
+        if(coroutine != null)
+        {
+            StopCoroutine(coroutine);
+            comboRect.anchoredPosition = comboRect.anchoredPosition = new Vector2(comboRect.anchoredPosition.x,comboBaseY);
+        }
+        UpdateUI(0,0,0);
         levelCompletePanel.SetActive(false);
+        UIStateManager.instance.ChangeState(UIStateEnum.DashboardState);
     }
 }

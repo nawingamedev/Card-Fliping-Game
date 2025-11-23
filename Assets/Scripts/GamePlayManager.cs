@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -28,8 +29,10 @@ public class GamePlayManager : MonoBehaviour
     private GridLayoutGroup gridLayoutGroup;
     private List<GameObject> cards = new();
     private List<CardBehaviour> selectedCard = new();
+    private HashSet<CardBehaviour> processingCards = new();
 
-    private bool inputLocked = false;
+
+  //  private bool inputLocked = false;
 
 
     void Awake()
@@ -107,7 +110,6 @@ public class GamePlayManager : MonoBehaviour
     IEnumerator ShowHideCards()
     {
         //Show and Hide card before starting the game
-        inputLocked = true;
 
         foreach (var card in cards)
             card.GetComponent<CardBehaviour>().FlipCard(true);
@@ -117,7 +119,6 @@ public class GamePlayManager : MonoBehaviour
         foreach (var card in cards)
             card.GetComponent<CardBehaviour>().FlipCard(false);
 
-        inputLocked = false;
     }
     private void ResizeGridCells(int rows, int columns)
     {
@@ -144,34 +145,40 @@ public class GamePlayManager : MonoBehaviour
 
     void CardSelected(CardBehaviour card)
     {
-        if (inputLocked) return;                          
-        if (selectedCard.Contains(card)) return;          
-        if (card.State != CardStates.FaceDown) return;   
+        if (processingCards.Contains(card)) return;   
+        if (card.State != CardStates.FaceDown) return;
+        if (selectedCard.Contains(card)) return;
 
         card.FlipCard(true);
         AudioManager.instance.Play2DClip("FlipCard");
         selectedCard.Add(card);
 
-        // Wait until enough cards selected
-        if (selectedCard.Count < matchCount) return;
-
-        inputLocked = true;
-        turnCount++;
-
-        StartCoroutine(EvaluateSelection());
+        
+        if (selectedCard.Count == matchCount)
+        {
+            var snapshot = new List<CardBehaviour>(selectedCard);
+            selectedCard.Clear();
+            StartCoroutine(EvaluateSelectionContinuous(snapshot));
+            selectedCard.Clear();
+        }
     }
 
-    IEnumerator EvaluateSelection()
+
+    IEnumerator EvaluateSelectionContinuous(List<CardBehaviour> _cardsInHold)
     {
-        yield return new WaitForSeconds(0.8f);
+        // Mark these cards as being processed
+        foreach (var c in _cardsInHold)
+            processingCards.Add(c);
+
+        yield return new WaitUntil(() => _cardsInHold.All(c => c.State == CardStates.FaceUp));
+
 
         bool allMatch = true;
+        int id = _cardsInHold[0].matchIndex;
 
-        int id = selectedCard[0].matchIndex;
-
-        for (int i = 1; i < selectedCard.Count; i++)
+        for (int i = 1; i < _cardsInHold.Count; i++)
         {
-            if (selectedCard[i].matchIndex != id)
+            if (_cardsInHold[i].matchIndex != id)
             {
                 allMatch = false;
                 break;
@@ -182,16 +189,16 @@ public class GamePlayManager : MonoBehaviour
         {
             AudioManager.instance.Play2DClip("CardMatched");
             matchedCount++;
-            comboCount++;
             scoreCounter += scoreMultiplier * comboCount;
-            if(comboCount > 1) GetCombo?.Invoke(comboCount);
-            
-            foreach (var c in selectedCard)
+            if (comboCount > 1){ GetCombo?.Invoke(comboCount);}
+            comboCount++;
+
+            foreach (var c in _cardsInHold)
                 c.MatchedCard();
 
             if (matchedCount == cards.Count / matchCount)
             {
-                yield return new WaitForSeconds(0.8f);
+                yield return new WaitForSeconds(0.5f);
                 LevelCleared?.Invoke();
             }
         }
@@ -199,12 +206,17 @@ public class GamePlayManager : MonoBehaviour
         {
             AudioManager.instance.Play2DClip("WrongCard");
             comboCount = 1;
-            foreach (var c in selectedCard)
+
+            foreach (var c in _cardsInHold)
                 c.FlipCard(false);
         }
-        UpdateUI?.Invoke(matchedCount,turnCount,scoreCounter);
-        selectedCard.Clear();
-        inputLocked = false;
+
+        // remove from processing
+        foreach (var c in _cardsInHold)
+            processingCards.Remove(c);
+
+        turnCount++;
+        UpdateUI?.Invoke(matchedCount, turnCount, scoreCounter);
     }
 
     public void ResetGame()
@@ -218,5 +230,6 @@ public class GamePlayManager : MonoBehaviour
         matchedCount = 0;
         turnCount = 0;
         scoreCounter = 0;
+        comboCount = 0;
     }
 }

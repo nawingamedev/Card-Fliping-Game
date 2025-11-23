@@ -42,11 +42,13 @@ public class LevelSelectionView : UIBaseStates
     }
     public void LevelSelected(int lvlIndex)
     {
+        AudioManager.instance.Play2DClip("ButtonClick");
         levelData.selectedLevel = lvlIndex;
         UIStateManager.instance.ChangeState(UIStateEnum.GameplayState);
     }
     public void OnBackClick()
     {
+        AudioManager.instance.Play2DClip("ButtonClick");
         UIStateManager.instance.ChangeState(UIStateEnum.DashboardState);
     }
 }
